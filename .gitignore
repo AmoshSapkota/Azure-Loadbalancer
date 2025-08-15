@@ -1,0 +1,45 @@
+# Assignment files
+question.txt
+.claude/
+
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+
+# Variable files (contain sensitive data)
+terraform.tfvars
+*.auto.tfvars
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+app.log
+
+# Java build artifacts
+target/
+*.jar
+*.class
+
+# Script outputs
+*.backup
+*.tmp
+
+# Helper scripts (regenerate from README)
+cleanup.sh
+deploy.sh
+
+# Extension settings (Azure CLI specific)
+extension-settings.json
+
+# Load test temporary files
+load-test.py
