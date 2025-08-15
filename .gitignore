@@ -10,7 +10,6 @@ question.txt
 .terraform.lock.hcl
 
 # Variable files (contain sensitive data)
-terraform.tfvars
 *.auto.tfvars
 
 # IDE files
@@ -42,4 +41,4 @@ deploy.sh
 extension-settings.json
 
 # Load test temporary files
-load-test.py
+terraform.tfvars

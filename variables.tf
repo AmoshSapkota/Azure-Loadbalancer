@@ -17,9 +17,9 @@ variable "vnet_name" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key for VM access"
+  description = "SSH public key for VM access - set via TF_VAR_ssh_public_key environment variable"
   type        = string
-  default     = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDgxYJDzW8FWjuRhYnEXWmYTooGQi6fc7qJiMyaioSmeVmT8qkOrTe7jALFvTg9PZyZqxYbH0leH+JBIzkZRhW9NOXyOzrphEmVmM1xuvphifDnPfU0vmQpqDpFn8oD/MmkzOOPQjCjwLxttYb4adYDPx06ayrJNupilnHhiW+X/oyYr54TvIFz0v3HpdyCpG74CWT+Y8cpRVXzfaavLft+lSJ3R3ZMexFfe72FbbDD1AVMZp5jvTFK60pgtZjHCEw4nSGbs4rs8UopD7wBDMG396MFxLBR5KxVqa0DFDDx2e4gNWWGRal03SQiipyxsGA2KSmK+/awiXOq64hz+U9TRMfPo2w5P/6Wl6MZmwXDGPJpmhYAmBI+cfw8hWuIrguSrpyl8OrDK3I7KLt8u0t4zH8bN/Yy1QLtobJaqm3TdpPiMUKd3VpA4Hh8YJofcaaUPsqcjZMVyzT3+XN7PsLU3YDCrWkSBv7s05xXRPAfIoKjRxpEHQHmQtdiWplEvbs= amoshsapkota@Amoshs-MBP"
+  sensitive   = true
 }
 
 variable "app_install_script" {

@@ -39,9 +39,9 @@ terraform version
 git clone <your-repo-url>
 cd Azure-Loadbalancer
 
-# Copy example variables and configure
+# Copy example variables and configure with your SSH key
 cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars  # Edit with your SSH public key
+nano terraform.tfvars  # Edit ssh_public_key with your actual key
 ```
 
 ### 3. Helper Scripts (Optional)
@@ -114,7 +114,7 @@ open http://<LOAD_BALANCER_IP>
 | `resource_group_name` | Resource group name | `amoshlbRG` |
 | `location` | Azure region | `East US` |
 | `vnet_name` | Virtual network name | `vnet-lb` |
-| `ssh_public_key` | SSH public key for VMs | Your public key |
+| `ssh_public_key` | SSH public key for VMs | Set in `terraform.tfvars` (git-ignored) |
 
 ## Application
 
