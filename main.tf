@@ -1,4 +1,3 @@
-# Configure the Azure Provider
 terraform {
   required_providers {
     azurerm = {
@@ -6,20 +5,24 @@ terraform {
       version = "~>3.0"
     }
   }
+  
+  backend "azurerm" {
+    resource_group_name  = "amoshlbRG"
+    storage_account_name = "amoshlbstorage"
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
+  }
 }
 
-# Configure the Microsoft Azure Provider
 provider "azurerm" {
   features {}
 }
 
-# Create a resource group
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
 }
 
-# Create a virtual network
 resource "azurerm_virtual_network" "main" {
   name                = var.vnet_name
   address_space       = ["10.0.0.0/16"]
@@ -27,23 +30,21 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = azurerm_resource_group.main.name
 }
 
-# Create a subnet
 resource "azurerm_subnet" "backend" {
-  name                 = "subnet-backend"
+  name                 = "backend-subnet"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Create Network Security Group
-resource "azurerm_network_security_group" "backend" {
-  name                = "nsg-backend"
+resource "azurerm_network_security_group" "main" {
+  name                = "lb-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
   security_rule {
-    name                       = "allow-http"
-    priority                   = 1000
+    name                       = "Allow-HTTP"
+    priority                   = 1001
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -54,30 +55,129 @@ resource "azurerm_network_security_group" "backend" {
   }
 
   security_rule {
-    name                       = "allow-ssh"
-    priority                   = 1010
+    name                       = "Allow-SSH"
+    priority                   = 1002
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "22"
+    destination_port_ranges    = ["22", "2201", "50000-50002"]
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 }
 
-# Create public IP for load balancer
-resource "azurerm_public_ip" "lb" {
-  name                = "pip-loadbalancer"
+resource "azurerm_subnet_network_security_group_association" "main" {
+  subnet_id                 = azurerm_subnet.backend.id
+  network_security_group_id = azurerm_network_security_group.main.id
+}
+
+resource "azurerm_storage_account" "app" {
+  name                     = "amoshlbstorage"
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_storage_container" "app" {
+  name                  = "app"
+  storage_account_name  = azurerm_storage_account.app.name
+  container_access_type = "blob"
+}
+
+resource "azurerm_storage_container" "tfstate" {
+  name                  = "tfstate"
+  storage_account_name  = azurerm_storage_account.app.name
+  container_access_type = "private"
+}
+
+resource "azurerm_shared_image_gallery" "main" {
+  name                = "lb_gallery"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
+
+resource "azurerm_shared_image" "main" {
+  name                = "lb-app-image"
+  gallery_name        = azurerm_shared_image_gallery.main.name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  os_type             = "Linux"
+
+  identifier {
+    publisher = "MyCompany"
+    offer     = "LoadBalancerApp"
+    sku       = "1.0"
+  }
+}
+
+resource "azurerm_public_ip" "vm_builder" {
+  name                = "vm-builder-pip"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
-# Create Load Balancer
+resource "azurerm_network_interface" "vm_builder" {
+  name                = "vm-builder-nic"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.backend.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.vm_builder.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "vm_builder" {
+  name                = "vm-builder"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  size                = "Standard_B1s"
+  admin_username      = "azureuser"
+
+  disable_password_authentication = true
+
+  network_interface_ids = [
+    azurerm_network_interface.vm_builder.id,
+  ]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = var.ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
+    version   = "latest"
+  }
+
+  custom_data = base64encode(templatefile("${path.module}/install-app.sh", {
+    storage_account_name = azurerm_storage_account.app.name
+  }))
+}
+
+resource "azurerm_public_ip" "lb" {
+  name                = "lb-public-ip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
 resource "azurerm_lb" "main" {
-  name                = "lb-backend"
+  name                = "main-lb"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   sku                 = "Standard"
@@ -88,22 +188,19 @@ resource "azurerm_lb" "main" {
   }
 }
 
-# Create backend pool
 resource "azurerm_lb_backend_address_pool" "main" {
   loadbalancer_id = azurerm_lb.main.id
   name            = "backend-pool"
 }
 
-# Create health probe
 resource "azurerm_lb_probe" "main" {
   loadbalancer_id = azurerm_lb.main.id
-  name            = "health-probe"
+  name            = "http-probe"
   port            = 8080
   protocol        = "Http"
-  request_path    = "/"
+  request_path    = "/actuator/health"
 }
 
-# Create load balancing rule
 resource "azurerm_lb_rule" "main" {
   loadbalancer_id                = azurerm_lb.main.id
   name                           = "http-rule"
@@ -113,9 +210,41 @@ resource "azurerm_lb_rule" "main" {
   frontend_ip_configuration_name = "frontend"
   backend_address_pool_ids       = [azurerm_lb_backend_address_pool.main.id]
   probe_id                       = azurerm_lb_probe.main.id
+  disable_outbound_snat          = true
 }
 
-# Create Network Interface for single VM
+resource "azurerm_lb_nat_rule" "vm_ssh" {
+  resource_group_name            = azurerm_resource_group.main.name
+  loadbalancer_id                = azurerm_lb.main.id
+  name                           = "SSH-VM"
+  protocol                       = "Tcp"
+  frontend_port                  = 2201
+  backend_port                   = 22
+  frontend_ip_configuration_name = "frontend"
+}
+
+resource "azurerm_lb_nat_rule" "vmss_ssh" {
+  count                          = 3
+  resource_group_name            = azurerm_resource_group.main.name
+  loadbalancer_id                = azurerm_lb.main.id
+  name                           = "SSH-VMSS-${count.index}"
+  protocol                       = "Tcp"
+  frontend_port                  = 50000 + count.index
+  backend_port                   = 22
+  frontend_ip_configuration_name = "frontend"
+}
+
+resource "azurerm_lb_outbound_rule" "main" {
+  loadbalancer_id         = azurerm_lb.main.id
+  name                    = "outbound-rule"
+  protocol                = "All"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.main.id
+
+  frontend_ip_configuration {
+    name = "frontend"
+  }
+}
+
 resource "azurerm_network_interface" "vm_single" {
   name                = "vm-single-nic"
   location            = azurerm_resource_group.main.location
@@ -128,20 +257,18 @@ resource "azurerm_network_interface" "vm_single" {
   }
 }
 
-# Associate Network Security Group to the network interface
-resource "azurerm_network_interface_security_group_association" "vm_single" {
-  network_interface_id      = azurerm_network_interface.vm_single.id
-  network_security_group_id = azurerm_network_security_group.backend.id
-}
-
-# Associate VM NIC to backend pool
 resource "azurerm_network_interface_backend_address_pool_association" "vm_single" {
   network_interface_id    = azurerm_network_interface.vm_single.id
   ip_configuration_name   = "internal"
   backend_address_pool_id = azurerm_lb_backend_address_pool.main.id
 }
 
-# Create single VM
+resource "azurerm_network_interface_nat_rule_association" "vm_single" {
+  network_interface_id  = azurerm_network_interface.vm_single.id
+  ip_configuration_name = "internal"
+  nat_rule_id           = azurerm_lb_nat_rule.vm_ssh.id
+}
+
 resource "azurerm_linux_virtual_machine" "vm_single" {
   name                = "vm-single"
   resource_group_name = azurerm_resource_group.main.name
@@ -172,12 +299,13 @@ resource "azurerm_linux_virtual_machine" "vm_single" {
     version   = "latest"
   }
 
-  custom_data = base64encode(var.app_install_script)
+  custom_data = base64encode(templatefile("${path.module}/install-app.sh", {
+    storage_account_name = azurerm_storage_account.app.name
+  }))
 }
 
-# Create VM Scale Set
 resource "azurerm_linux_virtual_machine_scale_set" "main" {
-  name                = "vmss-backend"
+  name                = "vmss-main"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "Standard_B1s"
@@ -198,6 +326,10 @@ resource "azurerm_linux_virtual_machine_scale_set" "main" {
     version   = "latest"
   }
 
+  custom_data = base64encode(templatefile("${path.module}/install-app.sh", {
+    storage_account_name = azurerm_storage_account.app.name
+  }))
+
   os_disk {
     storage_account_type = "Premium_LRS"
     caching              = "ReadWrite"
@@ -213,22 +345,17 @@ resource "azurerm_linux_virtual_machine_scale_set" "main" {
       subnet_id = azurerm_subnet.backend.id
       load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.main.id]
     }
-
-    network_security_group_id = azurerm_network_security_group.backend.id
   }
-
-  custom_data = base64encode(var.app_install_script)
 }
 
-# Create autoscale settings
 resource "azurerm_monitor_autoscale_setting" "main" {
-  name                = "autoscale-cpu"
+  name                = "vmss-autoscale"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   target_resource_id  = azurerm_linux_virtual_machine_scale_set.main.id
 
   profile {
-    name = "default"
+    name = "autoscale-profile"
 
     capacity {
       default = 1
@@ -252,7 +379,7 @@ resource "azurerm_monitor_autoscale_setting" "main" {
         direction = "Increase"
         type      = "ChangeCount"
         value     = "1"
-        cooldown  = "PT5M"
+        cooldown  = "PT1M"
       }
     }
 
@@ -272,7 +399,7 @@ resource "azurerm_monitor_autoscale_setting" "main" {
         direction = "Decrease"
         type      = "ChangeCount"
         value     = "1"
-        cooldown  = "PT5M"
+        cooldown  = "PT1M"
       }
     }
   }

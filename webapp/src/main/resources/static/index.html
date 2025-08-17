@@ -1,0 +1,35 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Product App</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 Simple E-Commerce Product App</h1>
+        <div class="forms-row">
+            <form id="add-form" class="form-block">
+                <h2>Add Product</h2>
+                <label>Product Name: <input type="text" id="add-prodName" required></label>
+                <label>Price: <input type="number" id="add-price" required></label>
+                <label>Category: <input type="text" id="add-category"></label>
+                <button type="submit">Add Product</button>
+            </form>
+            <form id="update-form" class="form-block" style="display:none;">
+                <h2>Edit Product</h2>
+                <input type="hidden" id="update-prodId">
+                <label>Product Name: <input type="text" id="update-prodName" required></label>
+                <label>Price: <input type="number" id="update-price" required></label>
+                <label>Category: <input type="text" id="update-category"></label>
+                <button type="submit">Update Product</button>
+                <button type="button" onclick="hideUpdateForm()">Cancel</button>
+            </form>
+
+        </div>
+        <div id="message"></div>
+        <div id="product-list"></div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>

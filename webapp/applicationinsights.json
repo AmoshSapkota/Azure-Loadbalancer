@@ -1,0 +1,40 @@
+{
+  "connectionString": "InstrumentationKey=b451ffb6-ef41-4e5b-aa8a-d8aeb6f83520;IngestionEndpoint=https://eastus-8.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/;ApplicationId=98e35c6d-389d-44a2-bc34-07c2d6ca16c4",
+  "role": {
+    "name": "webappapplication",
+    "instance": "production"
+  },
+  "sampling": {
+    "percentage": 100
+  },
+  "preview": {
+    "liveMetrics": {
+      "enabled": true
+    },
+    "processors": [
+      {
+        "type": "attribute",
+        "actions": [
+          {
+            "key": "service.name",
+            "value": "webappapplication",
+            "action": "insert"
+          },
+          {
+            "key": "service.version", 
+            "value": "1.0.0",
+            "action": "insert"
+          }
+        ]
+      }
+    ]
+  },
+  "instrumentation": {
+    "logging": {
+      "level": "INFO"
+    },
+    "micrometer": {
+      "enabled": true
+    }
+  }
+}

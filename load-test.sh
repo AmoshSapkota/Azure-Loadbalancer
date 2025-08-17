@@ -1,6 +1,14 @@
 #!/bin/bash
 
-LOAD_BALANCER_URL="http://172.190.161.191"
+# Get load balancer IP from Terraform output
+LOAD_BALANCER_IP=$(terraform output -raw load_balancer_public_ip 2>/dev/null)
+if [ -z "$LOAD_BALANCER_IP" ]; then
+    echo "Error: Could not get load balancer IP from terraform output"
+    echo "Make sure you have deployed the infrastructure first with 'terraform apply'"
+    exit 1
+fi
+
+LOAD_BALANCER_URL="http://$LOAD_BALANCER_IP"
 DURATION=300  # 5 minutes
 CONCURRENT_REQUESTS=10
 
