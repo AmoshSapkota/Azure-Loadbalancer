@@ -41,4 +41,8 @@ deploy.sh
 extension-settings.json
 
 # Load test temporary files
-terraform.tfvars
+Terraform/terraform.tfvars
+Terraform/terraform.tfstate.backup
+Terraform/terraform.tfstate
+Terraform/.terraform.lock.hcl
+Terraform/.terraform/
